@@ -14,46 +14,64 @@ export function AuthProvider({ children }) {
   const auth = getAuth(app);
 
   useEffect(() => {
+    // Listener que observa mudanças no estado de autenticação do Firebase
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUsuario(user);
       setCarregando(false);
+      
+      // Comunica o status do login para o app nativo, se estiver em um WebView
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(user ? 'USER_LOGGED_IN' : 'USER_LOGGED_OUT');
       }
     });
 
+    // Função para lidar com o token recebido do app nativo
     const handleTokenFromNative = async (event) => {
       const { token } = event.detail;
+
       if (token) {
         setCarregando(true);
         try {
           const credential = GoogleAuthProvider.credential(token);
           await signInWithCredential(auth, credential);
         } catch (error) {
-          console.error("Erro ao autenticar com credencial nativa:", error);
+          console.error("Erro ao autenticar com a credencial nativa:", error);
           setCarregando(false); 
         }
       }
     };
+
+    // Adiciona o listener para o evento customizado que o app nativo vai disparar
     window.addEventListener('firebaseAuthTokenReceived', handleTokenFromNative);
 
+    // Função de limpeza que é executada quando o componente é desmontado
     return () => {
       unsubscribe();
       window.removeEventListener('firebaseAuthTokenReceived', handleTokenFromNative);
     };
   }, [auth]);
 
+  // Método de login para o navegador web
   const loginComGoogle = () => {
     const provider = new GoogleAuthProvider();
     return signInWithPopup(auth, provider);
   };
 
-  const logout = () => signOut(auth);
+  const logout = () => {
+    return signOut(auth);
+  };
 
-  const value = { usuario, carregando, loginComGoogle, logout };
+  // Objeto com os valores a serem fornecidos pelo contexto
+  const value = {
+    usuario,
+    carregando,
+    loginComGoogle,
+    logout,
+  };
 
   return (
     <AuthContext.Provider value={value}>
       {!carregando && children}
     </AuthContext.Provider>
   );
+}
